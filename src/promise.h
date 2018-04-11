@@ -47,7 +47,7 @@ namespace a_promise_namespace {
             return _future.valid();
         }
         template < class F, class... Args>
-        auto than(F&& f, Args&&... args) {
+        auto then(F&& f, Args&&... args) {
             if (!_future.valid())
                 throw std::runtime_error("bad future");
             std::condition_variable _cv;
@@ -109,7 +109,7 @@ namespace a_promise_namespace {
             return _future.valid();
         }
         template < class F, class... Args>
-        auto than(F&& f, Args&&... args) {
+        auto then(F&& f, Args&&... args) {
             if (!_future.valid())
                 throw std::runtime_error("bad future");
             std::condition_variable _cv;
