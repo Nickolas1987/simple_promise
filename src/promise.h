@@ -62,11 +62,12 @@ namespace a_promise_namespace {
             promise<typename std::result_of<F(T)>::type> new_prom(std::async(std::launch::async, [&]()->typename std::result_of < F(T)>::type {
                 std::unique_lock<std::mutex> locker(_mut);
                 auto _fut = std::move(_future);
+                auto _func = f;
                 _notified = true;
                 locker.unlock();
                 _cv.notify_one();
                 auto _ret = _fut.get();
-                auto _cb = std::bind(std::forward<F>(f), _ret);
+                auto _cb = std::bind(std::forward<F>(_func), _ret);
                 return _cb();
             }));
             std::unique_lock<std::mutex> locker(_mut);
@@ -79,17 +80,19 @@ namespace a_promise_namespace {
             promise<typename std::result_of<F(T)>::type> new_prom(std::async(std::launch::async, [&]()->typename std::result_of < F(T)>::type {
                 std::unique_lock<std::mutex> locker(_mut);
                 auto _fut = std::move(_future);
+                auto _func = f;
+                auto _err_func = ef;
                 _notified = true;
                 locker.unlock();
                 _cv.notify_one();
                 try {
                     auto _ret = _fut.get();
-                    auto _cb = std::bind(std::forward<F>(f), _ret);
+                    auto _cb = std::bind(std::forward<F>(_func), _ret);
                     return _cb();
                 }
                 catch (...) {
                     std::exception_ptr _eptr = std::current_exception();
-                    auto _eb = std::bind(std::forward<E>(ef), _eptr);
+                    auto _eb = std::bind(std::forward<E>(_err_func), _eptr);
                     _eb();
                     std::rethrow_exception(_eptr);
                 }
@@ -158,11 +161,12 @@ namespace a_promise_namespace {
             promise<typename std::result_of < F()>::type> _ret_prom(async_call( [&]()-> typename std::result_of < F()>::type {
                 std::unique_lock<std::mutex> locker(_mut);
                 auto _fut = std::move(_future);
+                auto _func = f;
                 _notified = true;
                 locker.unlock();
                 _cv.notify_one();
                 _fut.get();
-                auto _cb = std::bind(std::forward<F>(f));
+                auto _cb = std::bind(std::forward<F>(_func));
                 return _cb();
             }));
             std::unique_lock<std::mutex> locker(_mut);
@@ -175,17 +179,19 @@ namespace a_promise_namespace {
             promise<typename std::result_of<F()>::type> new_prom(std::async(std::launch::async, [&]()-> typename std::result_of < F()>::type {
                 std::unique_lock<std::mutex> locker(_mut);
                 auto _fut = std::move(_future);
+                auto _func = f;
+                auto _err_func = ef;
                 _notified = true;
                 locker.unlock();
                 _cv.notify_one();
                 try {
                     _fut.get();
-                    auto _cb = std::bind(std::forward<F>(f));
+                    auto _cb = std::bind(std::forward<F>(_func));
                     return _cb();
                 }
                 catch (...) {
                     std::exception_ptr _eptr = std::current_exception();
-                    auto _eb = std::bind(std::forward<E>(ef), _eptr);
+                    auto _eb = std::bind(std::forward<E>(_err_func), _eptr);
                     _eb();
                     std::rethrow_exception(_eptr);
                 }

@@ -27,6 +27,9 @@ TEST_F(TestLog, test1)
         std::cout << "bar" <<std::endl;
         return in + add;
      };
+     auto dom = []{
+       std::cout << "void func" << std::endl;
+     };
      a_promise_namespace::async_call([&]()->int{
                 return foo(10);
      }).then([&](int val)->int {
@@ -44,7 +47,7 @@ TEST_F(TestLog, test1)
                 catch (...) {
                 }
      }).finish();
-     
+     a_promise_namespace::async_call(dom).finish();
      std::cout << "other action" << std::endl;
      std::cin.get();
 }
