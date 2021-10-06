@@ -7,203 +7,169 @@
 #include <mutex>
 #include <type_traits>
 #include <condition_variable>
-namespace a_promise_namespace {
+namespace a_promise_namespace 
+{
     template<typename T>
     class promise
     {
-      public:
+    public:
         promise() {}
-        promise(std::future<T>&& val) :_future(std::forward<std::future<T>&&>(val)), _notified(false) {
-            if (!_future.valid())
-                throw std::runtime_error("bad future");
+        promise(std::future<T>&& val) noexcept : m_future(std::forward<std::future<T>>(val)) 
+        {
         }
-        promise(promise&& val):_future(std::forward<std::future<T>&& >(val._future)), _notified(false) {
-            if (!_future.valid())
-                throw std::runtime_error("bad future");
+        promise(promise&& val) noexcept : m_future(std::forward<std::future<T>>(val.m_future))
+        {
         }
-        promise(const promise&) = delete;
+        promise(const promise&) noexcept = delete;
         promise& operator=(const promise&) = delete;
-        promise& operator=(promise&& val) {
-            if (&val != this) {
-                _future = std::move(val._future);
-                if (!_future.valid())
-                    throw std::runtime_error("bad future");
+        promise& operator=(promise&& val) noexcept
+        {
+            if (&val != this) 
+            {
+                m_future = std::move(val.m_future);
             }
         }
-        promise& operator=(std::future<T>&& val) {
-            _future = std::forward<std::future<T>&& >(val);
-            if (!_future.valid())
+        promise& operator=(std::future<T>&& val) 
+        {
+            m_future = std::forward<std::future<T>&& >(val);
+            if (!m_future.valid())
+            {
                 throw std::runtime_error("bad future");
+            }
             return *this;
         }
-        ~promise() {
+        ~promise() 
+        {
         }
-        void finish() {
-            std::condition_variable _cv;
-            std::thread _th([&]() {
-                try {
-                    std::unique_lock<std::mutex> locker(_mut);
-                    auto _fut = std::move(_future);
-                    _notified = true;
-                    locker.unlock();
-                    _cv.notify_one();
-                    _fut.get();
+        void finish() 
+        {
+            std::thread th([localFut = std::move(m_future)]() mutable 
+            {
+                try 
+                {
+                    localFut.get();
                 }
-                catch (...) {
+                catch (...) 
+                {
                 }
             });
-            _th.detach();
-            std::unique_lock<std::mutex> locker(_mut);
-            _cv.wait(locker, [&] { return _notified; });
+            th.detach();
         }
-        template < class F>
-        auto then(F&& f) {
-            std::condition_variable _cv;
-            promise<typename std::result_of<F(T)>::type> new_prom(std::async(std::launch::async, [&]()->typename std::result_of < F(T)>::type {
-                std::unique_lock<std::mutex> locker(_mut);
-                auto _fut = std::move(_future);
-                auto _func = f;
-                _notified = true;
-                locker.unlock();
-                _cv.notify_one();
-                auto _ret = _fut.get();
-                auto _cb = std::bind(std::forward<F>(_func), _ret);
-                return _cb();
+        template <class F>
+        auto then(F&& f) 
+        {
+            promise<typename std::result_of<F(T)>::type> newProm(std::async(std::launch::async, [localFut = std::move(m_future), localFunc = f]() mutable -> typename std::result_of < F(T)>::type
+            {
+                auto ret = localFut.get();
+                auto cb = std::bind(std::forward<F>(localFunc), ret);
+                return cb();
             }));
-            std::unique_lock<std::mutex> locker(_mut);
-            _cv.wait(locker, [&] { return _notified; });
-            return new_prom;
+            return newProm;
         }
         template < class F, class E>
-        auto then(F&& f, E&& ef) {
-            std::condition_variable _cv;
-            promise<typename std::result_of<F(T)>::type> new_prom(std::async(std::launch::async, [&]()->typename std::result_of < F(T)>::type {
-                std::unique_lock<std::mutex> locker(_mut);
-                auto _fut = std::move(_future);
-                auto _func = f;
-                auto _err_func = ef;
-                _notified = true;
-                locker.unlock();
-                _cv.notify_one();
-                try {
-                    auto _ret = _fut.get();
-                    auto _cb = std::bind(std::forward<F>(_func), _ret);
-                    return _cb();
+        auto then(F&& f, E&& ef) 
+        {
+            promise<typename std::result_of<F(T)>::type> newProm(std::async(std::launch::async, [localFut = std::move(m_future), localFunc = f, localErrFunc = ef]() mutable -> typename std::result_of < F(T)>::type 
+            {
+                try 
+                {
+                    auto ret = localFut.get();
+                    auto cb = std::bind(std::forward<F>(localFunc), ret);
+                    return cb();
                 }
-                catch (...) {
-                    std::exception_ptr _eptr = std::current_exception();
-                    auto _eb = std::bind(std::forward<E>(_err_func), _eptr);
-                    _eb();
-                    std::rethrow_exception(_eptr);
+                catch (...) 
+                {
+                    std::exception_ptr eptr = std::current_exception();
+                    auto eb = std::bind(std::forward<E>(localErrFunc), eptr);
+                    eb();
+                    std::rethrow_exception(eptr);
                 }
             }));
-            std::unique_lock<std::mutex> locker(_mut);
-            _cv.wait(locker, [&]() {return _notified; });
-            return new_prom;
+            return newProm;
         }
-      private:
-        std::future<T> _future;
-        std::mutex _mut;
-        bool _notified;
+    private:
+        std::future<T> m_future;
     };
 
     template<>
     class promise<void>
     {
     public:
-        promise():_notified(false) {}
-        promise(std::future<void>&& val) :_future(std::forward<std::future<void> >(val)),_notified(false) {
-            if (!_future.valid())
+        promise() {}
+        promise(std::future<void>&& val) :m_future(std::forward<std::future<void> >(val)) 
+        {
+            if (!m_future.valid())
+            {
                 throw std::runtime_error("bad future");
-        }
-        promise(promise&& val):_future(std::forward<std::future<void> >(val._future)), _notified(false) {
-            if (!_future.valid())
-                throw std::runtime_error("bad future");
-        }
-        ~promise() {
-        }
-        promise(const promise&) = delete;
-        promise& operator=(const promise&) = delete;
-        promise& operator=(promise&& val) {
-            if (&val != this) {
-                _future.operator=(std::forward<std::future<void> >(val._future));
-                if (!_future.valid())
-                    throw std::runtime_error("bad future");
             }
         }
-        promise& operator=(std::future<void>&& val) {
-            _future.operator=(std::forward<std::future<void> >(val));
-            if (!_future.valid())
-                throw std::runtime_error("bad future");
+        promise(promise&& val) noexcept : m_future(std::forward<std::future<void> >(val.m_future))
+        {
+        }
+        ~promise() 
+        {
+        }
+        promise(const promise&) = delete;
+        promise& operator=(const promise&) noexcept = delete;
+        promise& operator=(promise&& val) noexcept
+        {
+            if (&val != this) 
+            {
+                m_future.operator=(std::forward<std::future<void> >(val.m_future));
+            }
             return *this;
         }
-        void finish() {
-            std::condition_variable _cv;
-            std::thread _th([&]() {
-                try {
-                    std::unique_lock<std::mutex> locker(_mut);
-                    auto _fut = std::move(_future);
-                    _notified = true;
-                    locker.unlock();
-                    _cv.notify_one();
-                    _fut.get();
+        promise& operator=(std::future<void>&& val) noexcept
+        {
+            m_future.operator=(std::forward<std::future<void> >(val));
+            return *this;
+        }
+        void finish() 
+        {
+            std::thread th([localFut = std::move(m_future)]() mutable
+            {
+                try
+                {
+                    localFut.get();
                 }
-                catch (...) {
+                catch (...)
+                {
                 }
             });
-            _th.detach();
-            std::unique_lock<std::mutex> locker(_mut);
-            _cv.wait(locker, [&] { return _notified; });
+            th.detach();
         }
         template < class F>
-        auto then(F&& f) {
-            std::condition_variable _cv;
-            promise<typename std::result_of < F()>::type> _ret_prom(async_call( [&]()-> typename std::result_of < F()>::type {
-                std::unique_lock<std::mutex> locker(_mut);
-                auto _fut = std::move(_future);
-                auto _func = f;
-                _notified = true;
-                locker.unlock();
-                _cv.notify_one();
-                _fut.get();
-                auto _cb = std::bind(std::forward<F>(_func));
-                return _cb();
+        auto then(F&& f) 
+        {
+            promise<typename std::result_of < F()>::type> newProm(async_call([localFut = std::move(m_future), localFunc = f]() mutable -> typename std::result_of < F()>::type
+            {
+                localFut.get();
+                auto cb = std::bind(std::forward<F>(localFunc));
+                return cb();
             }));
-            std::unique_lock<std::mutex> locker(_mut);
-            _cv.wait(locker, [&] { return _notified; });
-            return _ret_prom;
+            return newProm;
         }
         template < class F, class E>
         auto then(F&& f, E&& ef) {
-            std::condition_variable _cv;
-            promise<typename std::result_of<F()>::type> new_prom(std::async(std::launch::async, [&]()-> typename std::result_of < F()>::type {
-                std::unique_lock<std::mutex> locker(_mut);
-                auto _fut = std::move(_future);
-                auto _func = f;
-                auto _err_func = ef;
-                _notified = true;
-                locker.unlock();
-                _cv.notify_one();
-                try {
-                    _fut.get();
-                    auto _cb = std::bind(std::forward<F>(_func));
-                    return _cb();
+            promise<typename std::result_of<F()>::type> newProm(std::async(std::launch::async, [localFut = std::move(m_future), localFunc = f, localErrFunc = ef]() mutable -> typename std::result_of < F()>::type
+            {
+                try
+                {
+                    localFut.get();
+                    auto cb = std::bind(std::forward<F>(localFunc));
+                    return cb();
                 }
-                catch (...) {
-                    std::exception_ptr _eptr = std::current_exception();
-                    auto _eb = std::bind(std::forward<E>(_err_func), _eptr);
-                    _eb();
-                    std::rethrow_exception(_eptr);
+                catch (...) 
+                {
+                    std::exception_ptr eptr = std::current_exception();
+                    auto eb = std::bind(std::forward<E>(localErrFunc), eptr);
+                    eb();
+                    std::rethrow_exception(eptr);
                 }
             }));
-            std::unique_lock<std::mutex> locker(_mut);
-            _cv.wait(locker, [&] { return _notified; });
-            return new_prom;
+            return newProm;
         }
     private:
-        std::future<void> _future;
-        std::mutex _mut;
-        bool _notified;
-    };  
+        std::future<void> m_future;
+    };
 }
-

@@ -1,5 +1,5 @@
 \CC=g++
-CXXFLAGS=-c -pthread -std=c++1y -Wall
+CXXFLAGS=-c -pthread -std=c++1z -Wall
 INC=  -I../src
 SOURCES=main.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
