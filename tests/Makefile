@@ -1,4 +1,4 @@
-\CC=g++
+CC=g++
 CXXFLAGS=-c -pthread -std=c++1z -Wall
 INC=  -I../src
 SOURCES=main.cpp
@@ -9,7 +9,7 @@ EXECUTABLE=tests_simple_promise
 all: $(SOURCES) $(EXECUTABLE)
 	
 $(EXECUTABLE): $(OBJECTS) 
-	$(CC) $(OBJECTS) /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.24 -o $@ -pthread -lgmock -lgmock_main
+	$(CC) $(OBJECTS) /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.28 -o $@ -pthread -lgtest -lgtest_main
 .cpp.o:
 	$(CC) $(CXXFLAGS) $< -o $@ $(INC)
 clean:
